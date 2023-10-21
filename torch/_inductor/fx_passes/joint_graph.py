@@ -112,6 +112,65 @@ def remove_no_ops(
             replace_no_op(node, 0)
 
 
+@torch.utils._python_dispatch._disable_current_modes()
+def remove_redundant_complex_views(gm: torch.fx.GraphModule):
+    """
+    Removes redundant complex views by reusing existing ones.
+    """
+
+    # A dictionary mapping a tensor to all aliased views.
+    aliases = {}
+    graph = gm.graph
+
+    for node in graph.nodes:
+        if node.op != "call_function":
+            continue
+
+        if node.target != torch.ops.aten.view.dtype:
+            continue
+
+        src = node.args[0]
+        from_type = src.meta["val"].dtype
+        to_type = node.args[1]
+
+        # Only handle complex views.
+        if not from_type.is_complex and not to_type.is_complex:
+            continue
+
+        existing_aliases = aliases.get(src)
+        is_needed = True
+
+        if existing_aliases:
+            # Replace the view with the an existing view if available.
+            for alias in existing_aliases:
+                if alias.meta["val"].dtype == to_type:
+                    is_needed = False
+                    node.replace_all_uses_with(alias)
+                    alias.meta.update(node.meta)
+                    graph.erase_node(node)
+                    break
+        else:
+            existing_aliases = [src]
+            aliases[src] = existing_aliases
+
+        if is_needed:
+            # Save the new alias.
+            existing_aliases.append(node)
+            aliases[node] = existing_aliases
+
+    # Clean up unused aliases.
+    while True:
+        unused_aliases = []
+        for alias in aliases:
+            if not alias.users:
+                unused_aliases.append(alias)
+        if len(unused_aliases) == 0:
+            break
+        for unused in unused_aliases:
+            aliases.pop(unused)
+            graph.erase_node(unused)
+
+
 class UniformValueConstantFolder(ConstantFolder):
     """
     Runs constant folding and replaces tensors that have a unifrom value
@@ -202,6 +261,7 @@ def constant_fold_uniform_value(gm: torch.fx.GraphModule):
                 ones.add(new_node)
 
     remove_no_ops(gm, zeros, ones)
+    remove_redundant_complex_views(gm)
 
 
 def joint_graph_passes(graph: torch.fx.GraphModule):
