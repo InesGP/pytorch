@@ -162,6 +162,7 @@ fi
 if [[ "${BUILD_ENVIRONMENT}" == *clang* ]]; then
   export CC=clang
   export CXX=clang++
+  export VFC_BACKENDS=libinterflop_ieee.so
 fi
 
 if [[ "$BUILD_ENVIRONMENT" == *-clang*-asan* ]]; then
@@ -220,7 +221,8 @@ else
     # set only when building other architectures
     # or building non-XLA tests.
     if [[ "$BUILD_ENVIRONMENT" != *rocm*  &&
-          "$BUILD_ENVIRONMENT" != *xla* ]]; then
+          "$BUILD_ENVIRONMENT" != *xla* &&
+	  "$BUILD_ENVIRONMENT" != *verificarlo* ]]; then
       WERROR=1 python setup.py bdist_wheel
     else
       python setup.py bdist_wheel
