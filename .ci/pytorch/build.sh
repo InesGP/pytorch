@@ -162,7 +162,12 @@ fi
 if [[ "${BUILD_ENVIRONMENT}" == *clang* ]]; then
   export CC=clang
   export CXX=clang++
-  export VFC_BACKENDS=libinterflop_ieee.so
+fi
+
+if [[ "${BUILD_ENVIRONMENT}" == *verificarlo* ]]; then
+  export CC=verificarlo-c
+  export CXX=verificarlo-c++
+  export VFC_BACKENDS=libinterflop_ieee.so # So that cmake checks pass
 fi
 
 if [[ "$BUILD_ENVIRONMENT" == *-clang*-asan* ]]; then
